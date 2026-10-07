@@ -1,0 +1,1269 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Punta Clara 3D</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --green-900:#042B0B; --green-90:#263F26; --green-80:#3D553E; --green-70:#546955;
+    --green-60:#6D7F6E; --green-50:#859486; --green-40:#9EAA9E; --green-30:#B6BFB7;
+    --green-20:#CED5CE; --green-10:#E7EAE7; --warm-white:#F7EFE6; --pink:#FF78D2;
+
+    --bg-land: var(--warm-white);
+    --panel-bg: rgba(247,239,230,.95);
+    --panel-border: var(--green-30);
+    --panel-shadow: rgba(4,43,11,.22);
+    --ink: var(--green-900);
+    --ink-soft: var(--green-70);
+    --ink-faint: var(--green-50);
+    --accent: var(--green-900);
+    --accent-ink: var(--warm-white);
+    --accent-line: rgba(4,43,11,.22);
+    --accent-tint: rgba(4,43,11,.10);
+    --route: var(--pink);
+    --hover: rgba(4,43,11,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --panel-bg: rgba(4,43,11,.92);
+      --panel-border: var(--green-70);
+      --panel-shadow: rgba(0,0,0,.5);
+      --ink: var(--warm-white);
+      --ink-soft: var(--green-20);
+      --ink-faint: var(--green-30);
+      --accent: var(--green-20);
+      --accent-ink: var(--green-900);
+      --accent-line: rgba(231,234,231,.22);
+      --accent-tint: rgba(206,213,206,.14);
+      --hover: rgba(247,239,230,.08);
+    }
+  }
+  :root[data-theme="dark"]{
+    --panel-bg: rgba(4,43,11,.92);
+    --panel-border: var(--green-70);
+    --panel-shadow: rgba(0,0,0,.5);
+    --ink: var(--warm-white);
+    --ink-soft: var(--green-20);
+    --ink-faint: var(--green-30);
+    --accent: var(--green-20);
+    --accent-ink: var(--green-900);
+    --accent-line: rgba(231,234,231,.22);
+    --accent-tint: rgba(206,213,206,.14);
+    --hover: rgba(247,239,230,.08);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; overflow:hidden; background: var(--bg-land); }
+  body{ font-family:"Public Sans",system-ui,sans-serif; color:var(--ink); }
+  .app{ position:relative; width:100vw; height:100vh; background: var(--bg-land); }
+
+  .map-frame{ position:absolute; inset:0; overflow:hidden; background: var(--bg-land); }
+  .map-video{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center top;
+    transition: opacity .5s ease;
+  }
+  .map-video.no-route{ opacity:1; }
+  .map-video.with-route{ opacity:0; }
+  .map-frame.is-active .map-video.no-route{ opacity:0; }
+  .map-frame.is-active .map-video.with-route{ opacity:1; }
+
+  .card{
+    background: var(--panel-bg);
+    border:1px solid var(--panel-border);
+    border-radius:12px;
+    box-shadow: 0 10px 28px var(--panel-shadow);
+    backdrop-filter: blur(6px);
+  }
+  .title-card{
+    position:absolute; top:18px; left:18px; z-index:5;
+    padding:14px 18px; max-width: calc(100vw - 36px);
+  }
+
+  .right-panel{
+    position:absolute; top:18px; right:18px; z-index:5;
+    width:240px; max-width: calc(100vw - 36px);
+    display:flex; flex-direction:column; gap:12px;
+    max-height: calc(100vh - 36px); overflow:auto;
+  }
+  .title-card h1{ margin:0 0 2px; font-family:"Archivo",sans-serif; font-weight:800; font-size:19px; letter-spacing:-.01em; }
+  .title-card p{ margin:0; font-size:12px; color:var(--ink-soft); }
+  .title-card .badge3d{
+    display:inline-block; margin-top:8px; padding:3px 9px; border-radius:999px;
+    background: var(--accent-tint); color: var(--ink); font:600 10.5px "IBM Plex Mono",monospace;
+    letter-spacing:.04em;
+  }
+
+  /* decorative search bar, purely visual — makes the map read like a real app */
+  .search-bar{
+    width:100%; height:42px; padding:0 8px 0 14px; display:flex; align-items:center; gap:8px;
+    border-radius:999px; pointer-events:none;
+  }
+  .search-bar .icon-search{ flex:none; font-size:14px; color:var(--ink-faint); }
+  .search-bar .search-text{ flex:1; font-size:13px; color:var(--ink-soft); font-weight:500; }
+  .search-bar .icon-send{
+    flex:none; width:30px; height:30px; border-radius:50%; background:var(--accent-tint);
+    display:flex; align-items:center; justify-content:center; color:var(--ink); font-size:12px;
+  }
+
+  /* route banner — the stop-by-stop pharmacy visit itinerary */
+  .route-banner{ padding:14px 16px; }
+  .route-banner h3{ margin:0 0 10px; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); }
+  .route-stop{ position:relative; display:flex; align-items:center; gap:10px; padding:6px 0; }
+  .stop-marker{ position:relative; flex:none; width:16px; display:flex; align-items:center; justify-content:center; }
+  .stop-marker::before{
+    content:""; position:absolute; top:-6px; bottom:-6px; left:50%; width:2px;
+    background:var(--panel-border); transform:translateX(-50%); z-index:0;
+  }
+  .route-stop:first-child .stop-marker::before{ top:50%; }
+  .route-stop:last-child .stop-marker::before{ bottom:50%; }
+  .stop-dot{
+    position:relative; z-index:1; width:9px; height:9px; border-radius:50%;
+    background:var(--panel-bg); border:2px solid var(--ink-soft);
+  }
+  .route-stop.is-destination .stop-dot{ background:var(--route); border-color:var(--route); }
+  .stop-label{ font-size:12.5px; color:var(--ink); font-weight:500; }
+  .route-stop.is-destination .stop-label{ font-weight:700; }
+
+  .trip-bar{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:5;
+    width:260px; max-width: calc(100vw - 36px);
+    padding:14px 16px; display:flex; flex-direction:column; gap:10px; align-items:stretch;
+    transition: opacity .2s ease;
+  }
+  .trip-bar.is-hidden{ display:none; }
+  .trip-bar-btn{
+    width:100%; padding:10px 14px; border:none; border-radius:9px; cursor:pointer;
+    background: var(--accent); color: var(--accent-ink); font:700 13px "Public Sans",sans-serif;
+    letter-spacing:.01em; transition:filter .15s ease, transform .15s ease;
+    animation: btn-pulse 1.4s ease-in-out infinite;
+  }
+  .trip-bar-btn:hover{ filter:brightness(1.08); }
+  .trip-bar-btn.is-active{ background: var(--route); color:#fff; animation:none; }
+  @keyframes btn-pulse{
+    0%, 100%{ transform:scale(1); filter:brightness(1); }
+    50%{ transform:scale(1.045); filter:brightness(1.18); }
+  }
+
+  .footnote{
+    position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+    font-size:11px; color: var(--ink-faint); pointer-events:none;
+    text-shadow: 0 1px 2px rgba(0,0,0,.25);
+  }
+
+  @media (max-width:720px){
+    .right-panel{ width: calc(100vw - 36px); }
+    .trip-bar{ width: calc(100vw - 36px); }
+  }
+
+  /* ---- pharmacy-visit screens (Triangle / Star flow) ----
+     Shown/hidden via opacity (not display:none) so switching from one
+     full-screen video to the next crossfades smoothly instead of hard-cutting
+     through a blank frame. */
+  .screen-overlay{
+    position:fixed; inset:0; z-index:60; display:flex; flex-direction:column;
+    background: var(--bg-land); padding:26px 22px;
+    opacity:0; pointer-events:none; transition:opacity .5s ease;
+  }
+  .screen-overlay.is-open{ opacity:1; pointer-events:auto; z-index:61; }
+  .screen-inner{
+    flex:1; min-height:0; width:100%; max-width:1100px; margin:0 auto;
+    display:flex; flex-direction:column; gap:14px;
+  }
+  .screen-title{ margin:0; text-align:center; font-family:"Archivo",sans-serif; font-weight:800; font-size:16px; color:var(--ink); }
+  .screen-nav{ flex:none; display:flex; flex-wrap:wrap; gap:10px; justify-content:center; padding-top:4px; }
+  .nav-btn{
+    padding:10px 18px; border-radius:9px; border:1px solid var(--panel-border);
+    background:var(--panel-bg); color:var(--ink); font:600 13px "Public Sans",sans-serif; cursor:pointer;
+  }
+  .nav-btn:hover{ filter:brightness(1.05); }
+  .nav-btn-primary{ background:var(--accent); color:var(--accent-ink); border-color:transparent; }
+  .nav-btn.is-hidden{ display:none; }
+
+  .canva-embed-wrap, .scene-video-wrap{
+    flex:1; min-height:0; position:relative; border-radius:12px; overflow:hidden;
+    box-shadow:0 10px 28px var(--panel-shadow); background:#000;
+  }
+  .canva-embed-wrap iframe{ position:absolute; inset:0; width:100%; height:100%; border:none; padding:0; margin:0; }
+  .scene-video-wrap .scene-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; }
+
+  .select-hotspot-layer{
+    position:relative; width:min(100%, calc((100vh - 250px) * 16 / 9)); aspect-ratio:16/9; margin:0 auto;
+  }
+  .hotspot{
+    position:absolute; border:2px solid transparent; border-radius:10px; background:transparent; cursor:pointer;
+    transition: border-color .15s ease, background-color .15s ease; padding:0;
+  }
+  .hotspot:hover, .hotspot:focus-visible{ border-color: var(--route); background:rgba(255,120,210,.12); outline:none; }
+  .hotspot-left{ left:9%; top:36%; width:24%; height:32%; }
+  .hotspot-right{ left:41%; top:36%; width:24%; height:32%; }
+  /* Circle Pharmacy: the Yes/No pills in these videos sit together at the
+     bottom-left of the frame (not split across the left/right halves like
+     the Triangle selection screens), so these two override left/top/size. */
+  .hotspot-yn-left{ left:6%; top:74%; width:19%; height:14%; }
+  .hotspot-yn-right{ left:31%; top:74%; width:19%; height:14%; }
+  /* Diamond Pharmacy: Qunol and Buscapina show two product boxes side by
+     side, further right and taller than the bottom-left Yes/No pills above —
+     positioned from the reference screenshots of each video. */
+  .hotspot-qunol-left{ left:47%; top:30%; width:20%; height:55%; }
+  .hotspot-qunol-right{ left:75%; top:30%; width:18%; height:55%; }
+  .hotspot-buscapina-left{ left:44%; top:38%; width:27%; height:42%; }
+  .hotspot-buscapina-right{ left:73%; top:38%; width:24%; height:38%; }
+  .select-hotspot-layer.is-locked .hotspot{ pointer-events:none; cursor:default; }
+  .select-hotspot-layer.is-locked .hotspot.is-picked{ border-color: var(--route); background:rgba(255,120,210,.12); }
+
+  /* the selection image+hotspots, nested on top of a context video (screens 4/5) */
+  .scene-video-wrap .select-hotspot-layer.scene-overlay-image{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    opacity:0; pointer-events:none; transition:opacity .4s ease;
+  }
+  /* pointer-events only re-enabled while the screen itself is actually open —
+     otherwise, after leaving a screen via "Back to Map" (which doesn't reset
+     .is-visible), its still-"visible" hotspot layer would sit invisibly on
+     top of the map, in the exact same centered spot as the trip-bar, and
+     silently swallow clicks meant for the Start Route button underneath. */
+  .screen-overlay.is-open .scene-video-wrap .select-hotspot-layer.scene-overlay-image.is-visible{ opacity:1; pointer-events:auto; }
+  .scene-video-wrap .select-hotspot-layer.scene-overlay-image.is-visible{ opacity:1; }
+  /* Freeze-frame image (Circle Pharmacy Essentiale/Magne-B6): a still of the
+     video's own "Do you want this product?" moment, sized to fill the same
+     box syncOverlayToVideo already computed for this overlay, so it sits
+     exactly flush over the video and is indistinguishable from it. This
+     replaces relying on the video's own last frame, which kept playing past
+     that moment (into more dialogue) if the visitor took a moment to choose. */
+  .select-hotspot-layer.scene-overlay-image .select-img{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; pointer-events:none;
+  }
+
+  .placeholder-video{
+    flex:1; min-height:0; display:flex; align-items:center; justify-content:center;
+    border-radius:12px; background:var(--panel-bg); border:1px dashed var(--panel-border);
+    color:var(--ink-soft); font:800 20px "Archivo",sans-serif; letter-spacing:.02em;
+  }
+
+  /* Shown automatically over a .scene-video-wrap when its video (or a
+     select-img over it) fails to load — e.g. the file hasn't been uploaded
+     to videos/ or images/ yet — instead of a blank/broken box. */
+  .scene-video-wrap .media-missing{
+    position:absolute; inset:0; z-index:5; display:flex; align-items:center; justify-content:center;
+    background:var(--panel-bg); border:1px dashed var(--panel-border); border-radius:12px;
+    color:var(--ink-soft); font:800 18px "Archivo",sans-serif; letter-spacing:.02em; text-align:center; padding:16px;
+  }
+
+  /* Final "route complete" banner shown once the whole route finishes */
+  .route-complete-banner{
+    flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    border-radius:16px; background:var(--panel-bg); border:1px solid var(--panel-border); padding:40px 24px; text-align:center;
+  }
+  .route-complete-check{
+    width:72px; height:72px; border-radius:50%; background:var(--accent); color:var(--accent-ink);
+    display:flex; align-items:center; justify-content:center; font:800 34px/1 "Archivo",sans-serif; flex:none;
+  }
+  .route-complete-title{
+    font:800 26px "Archivo",sans-serif; color:var(--ink); letter-spacing:.01em;
+  }
+
+  @media (max-width:720px){
+    .screen-overlay{ padding:16px 12px; }
+  }
+
+  /* Language picker — the very first thing shown, above everything else
+     (including the map underneath, which is already idling behind it).
+     English, Spanish and Portuguese all proceed into the map; each one
+     points every video/image at its own videos/<LANG>/ and images/<LANG>/
+     subfolder and switches all translatable text (see applyMediaLanguage /
+     applyTextLanguage in the script below). */
+  .language-select-overlay{
+    position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center;
+    background: var(--green-900); padding:24px;
+    opacity:1; pointer-events:auto; transition:opacity .4s ease;
+  }
+  .language-select-overlay.is-hidden{ opacity:0; pointer-events:none; }
+  .language-select-inner{
+    max-width:420px; width:100%; text-align:center;
+    display:flex; flex-direction:column; gap:18px; align-items:center;
+  }
+  .language-select-title{
+    margin:0; font-family:"Archivo",sans-serif; font-weight:800; font-size:22px; color:var(--warm-white);
+  }
+  .language-select-buttons{ display:flex; flex-direction:column; gap:12px; width:100%; }
+  .language-btn{
+    width:100%; padding:14px 16px; border:none; border-radius:9px; cursor:pointer;
+    background: var(--warm-white); color: var(--green-900); font:700 15px "Public Sans",sans-serif;
+    letter-spacing:.01em; transition:filter .15s ease, transform .15s ease;
+  }
+  .language-btn:hover{ filter:brightness(1.08); }
+
+  /* Small corner escape hatch back to the language picker, in case the
+     wrong one got picked -- only makes sense before the route starts, so
+     it hides the same way the trip-bar does once "Start Route" is clicked. */
+  .change-language-btn{
+    position:fixed; left:16px; bottom:16px; z-index:10;
+    padding:8px 14px; border:none; border-radius:8px; cursor:pointer;
+    background: rgba(4,43,11,.08); color: var(--ink); font:600 12px "Public Sans",sans-serif;
+    letter-spacing:.01em; transition:filter .15s ease, background-color .15s ease;
+  }
+  .change-language-btn:hover{ background: rgba(4,43,11,.16); }
+  .change-language-btn.is-hidden{ display:none; }
+
+</style>
+
+<!-- Language picker — shown first, before the map. English, Spanish and
+     Portuguese all work: each points every video/image at its own
+     videos/<LANG>/ and images/<LANG>/ subfolder (same filenames, same
+     order as English) and switches all translatable button/info text. -->
+</head><body><div class="language-select-overlay" id="language-select">
+  <div class="title-card card">
+    <h1>Brand Protection Route</h1>
+  </div>
+  <div class="language-select-inner">
+    <h2 class="language-select-title">Select Language</h2>
+    <div class="language-select-buttons">
+      <button class="language-btn" data-lang="en">English</button>
+      <button class="language-btn" data-lang="es">Spanish</button>
+      <button class="language-btn" data-lang="po">Portuguese</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <div class="map-frame" id="map-frame">
+    <video class="map-video no-route" id="video-no-route" autoplay muted loop playsinline data-video="map-no-route.mp4"></video>
+    <video class="map-video with-route" id="video-with-route" playsinline data-video="map-with-route.mp4"></video>
+    <audio id="bg-audio" loop>
+      <source src="Audio/Opella_OnHold.mp3" type="audio/mpeg">
+    </audio>
+  </div>
+
+  <div class="title-card card">
+    <h1 data-i18n="title">Brand Protection Route</h1>
+    <span class="badge3d" data-i18n="badge_map_view">MAP VIEW</span>
+  </div>
+
+  <div class="right-panel">
+    <div class="search-bar card" aria-hidden="true">
+      <span class="icon-search">&#128269;</span>
+      <span class="search-text" data-i18n="search_new_trade_visit">New Trade Visit</span>
+      <span class="icon-send">&#10148;</span>
+    </div>
+
+    <div class="route-banner card">
+      <h3 data-i18n="route_banner_title">Pharmacy Visit Route</h3>
+      <div class="route-stop">
+        <span class="stop-marker"><span class="stop-dot"></span></span>
+        <span class="stop-label" data-i18n="stop_opella">Opella Healthcare Colombia</span>
+      </div>
+      <div class="route-stop">
+        <span class="stop-marker"><span class="stop-dot"></span></span>
+        <span class="stop-label" data-i18n="stop_triangle">Triangle Pharmacy</span>
+      </div>
+      <div class="route-stop">
+        <span class="stop-marker"><span class="stop-dot"></span></span>
+        <span class="stop-label" data-i18n="stop_star">Star Pharmacy</span>
+      </div>
+      <div class="route-stop">
+        <span class="stop-marker"><span class="stop-dot"></span></span>
+        <span class="stop-label" data-i18n="stop_circle">Circle Pharmacy</span>
+      </div>
+      <div class="route-stop is-destination">
+        <span class="stop-marker"><span class="stop-dot"></span></span>
+        <span class="stop-label" data-i18n="stop_opella">Opella Healthcare Colombia</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="trip-bar card" id="trip-bar">
+    <button class="trip-bar-btn" id="btn-start-route">Start Route</button>
+  </div>
+
+  <button class="change-language-btn" id="btn-change-language" data-i18n="btn_change_language">Change Language</button>
+
+</div>
+
+<!-- 3. Welcome to Triangle Pharmacy — plays automatically, advances on its own when it ends -->
+<div class="screen-overlay" id="screen-triangle-welcome" data-on-end="triangle-allegra-context">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="triangle-welcome.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+    </div>
+  </div>
+</div>
+
+<!-- 4. Triangle Pharmacy - Copycat Allegra — the Allegra selection image (4.1) fades in over the
+     last 2 seconds of this video; left = Allegra (-> 4.3, correct), right = the other box (-> 4.2, wrong) -->
+<div class="screen-overlay" id="screen-triangle-allegra-context"
+     data-reveal-before-end="0.5" data-left-next="triangle-allegra-correct" data-right-next="triangle-allegra-wrong">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="triangle-allegra-context.mp4"></video>
+      <div class="select-hotspot-layer scene-overlay-image">
+        <img class="select-img" alt="" data-img="select-allegra.jpg" data-img-fallback="select-allegra.png">
+        <button class="hotspot hotspot-left" data-role="left" data-i18n-aria="aria_select_allegra" aria-label="Select Allegra"></button>
+        <button class="hotspot hotspot-right" data-role="right" data-i18n-aria="aria_select_other" aria-label="Select the other product"></button>
+      </div>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+    </div>
+  </div>
+</div>
+
+<!-- 4.3 — correct Allegra pick -->
+<div class="screen-overlay" id="screen-triangle-allegra-correct">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="allegra-correct.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="triangle-enterogermina-context" data-i18n="nav_next_purchase">Next Purchase</button>
+    </div>
+  </div>
+</div>
+
+<!-- 4.2 — wrong Allegra pick -->
+<div class="screen-overlay" id="screen-triangle-allegra-wrong">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="allegra-wrong.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="triangle-enterogermina-context" data-i18n="nav_next_purchase">Next Purchase</button>
+    </div>
+  </div>
+</div>
+
+<!-- 5. Triangle Pharmacy - Copycat Enterogermina — image 5.1 fades in the same way;
+     here right = Enterogermina (-> 5.3, correct), left = the other box (-> 5.2, wrong) -->
+<div class="screen-overlay" id="screen-triangle-enterogermina-context"
+     data-reveal-before-end="0.5" data-left-next="triangle-enterogermina-wrong" data-right-next="triangle-enterogermina-correct">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="triangle-enterogermina-context.mp4"></video>
+      <div class="select-hotspot-layer scene-overlay-image">
+        <img class="select-img" alt="" data-img="select-enterogermina.jpg" data-img-fallback="select-enterogermina.png">
+        <button class="hotspot hotspot-left" data-role="left" data-i18n-aria="aria_select_other" aria-label="Select the other product"></button>
+        <button class="hotspot hotspot-right" data-role="right" data-i18n-aria="aria_select_enterogermina" aria-label="Select Enterogermina"></button>
+      </div>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+    </div>
+  </div>
+</div>
+
+<!-- 5.3 — correct Enterogermina pick -->
+<div class="screen-overlay" id="screen-triangle-enterogermina-correct">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="enterogermina-correct.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="triangle-explain" data-i18n="nav_next">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- 5.2 — wrong Enterogermina pick -->
+<div class="screen-overlay" id="screen-triangle-enterogermina-wrong">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="enterogermina-wrong.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="triangle-explain" data-i18n="nav_next">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- Copycat summary video — wraps up the Triangle Pharmacy visit -->
+<div class="screen-overlay" id="screen-triangle-explain">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="copycat.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="circle-welcome" data-i18n="nav_next_stop">Next Stop</button>
+    </div>
+  </div>
+</div>
+
+<!-- Circle Pharmacy — welcome video for the next stop on the route; auto-advances
+     into the Essentiale copycat scene when it ends, same as Triangle's welcome video -->
+<div class="screen-overlay" id="screen-circle-welcome" data-on-end="circle-magneb6-context">
+     <!-- Essentiale (only) is temporarily skipped for this run: circle-welcome
+          now auto-advances straight to circle-magneb6-context, so Magne-B6 is
+          shown normally. The Essentiale screens (circle-essentiale-context /
+          -correct / -wrong) below are untouched and still fully wired up --
+          just unreachable from the normal flow while this points past them.
+          To bring Essentiale back too, change data-on-end above to
+          "circle-essentiale-context". -->
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="circle-welcome.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+    </div>
+  </div>
+</div>
+
+<!-- Circle Pharmacy - Copycat Essentiale — Yes/No hotspots reveal over the video's
+     own on-screen Yes/No labels in the last 2 seconds; Yes = wrong pick, No = correct -->
+<div class="screen-overlay" id="screen-circle-essentiale-context"
+     data-reveal-before-end="0.5" data-left-next="circle-essentiale-wrong" data-right-next="circle-essentiale-correct">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="circle-essentiale-context.mp4"></video>
+      <div class="select-hotspot-layer scene-overlay-image">
+        <img class="select-img" alt="" data-img="select-essentiale.jpg" data-img-fallback="select-essentiale.png">
+        <button class="hotspot hotspot-left hotspot-yn-left" data-role="left" data-i18n-aria="aria_select_yes" aria-label="Select Yes"></button>
+        <button class="hotspot hotspot-right hotspot-yn-right" data-role="right" data-i18n-aria="aria_select_no" aria-label="Select No"></button>
+      </div>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+    </div>
+  </div>
+</div>
+
+<!-- Essentiale — wrong pick (Yes) -->
+<div class="screen-overlay" id="screen-circle-essentiale-wrong">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="Essentiale-wrong.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="circle-magneb6-context" data-i18n="nav_next_purchase">Next Purchase</button>
+    </div>
+  </div>
+</div>
+
+<!-- Essentiale — correct pick (No) -->
+<div class="screen-overlay" id="screen-circle-essentiale-correct">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="Essentiale-correct.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="circle-magneb6-context" data-i18n="nav_next_purchase">Next Purchase</button>
+    </div>
+  </div>
+</div>
+
+<!-- Circle Pharmacy - Copycat Magne-B6 — same Yes/No pattern; Yes = wrong pick, No = correct -->
+<div class="screen-overlay" id="screen-circle-magneb6-context"
+     data-reveal-before-end="0.5" data-left-next="circle-magneb6-wrong" data-right-next="circle-magneb6-correct">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="circle-magneb6-context.mp4"></video>
+      <div class="select-hotspot-layer scene-overlay-image">
+        <img class="select-img" alt="" data-img="select-magenb6.jpg" data-img-fallback="select-magenb6.png">
+        <button class="hotspot hotspot-left hotspot-yn-left" data-role="left" data-i18n-aria="aria_select_yes" aria-label="Select Yes"></button>
+        <button class="hotspot hotspot-right hotspot-yn-right" data-role="right" data-i18n-aria="aria_select_no" aria-label="Select No"></button>
+      </div>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+    </div>
+  </div>
+</div>
+
+<!-- Magne-B6 — wrong pick (Yes) -->
+<div class="screen-overlay" id="screen-circle-magneb6-wrong">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="Magne-B6-wrong.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="circle-explain" data-i18n="nav_next">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- Magne-B6 — correct pick (No) -->
+<div class="screen-overlay" id="screen-circle-magneb6-correct">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="Magne-B6-correct.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="circle-explain" data-i18n="nav_next">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- Smuggling summary video — wraps up the Circle Pharmacy visit -->
+<div class="screen-overlay" id="screen-circle-explain">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="smuggling.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="diamond-welcome" data-i18n="nav_next_stop">Next Stop</button>
+    </div>
+  </div>
+</div>
+
+<!-- Diamond Pharmacy — welcome video for the next stop on the route; auto-advances
+     into the Qunol copycat scene when it ends, same as the other welcome videos -->
+<div class="screen-overlay" id="screen-diamond-welcome" data-on-end="diamond-qunol-context">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="diamond-welcome.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+    </div>
+  </div>
+</div>
+
+<!-- Diamond Pharmacy - Copycat Qunol — Yes/No-style hotspots reveal over the video's
+     own on-screen product choice in the last 2 seconds; left = correct, right = wrong -->
+<div class="screen-overlay" id="screen-diamond-qunol-context"
+     data-reveal-before-end="0.5" data-left-next="diamond-qunol-correct" data-right-next="diamond-qunol-wrong">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="diamond-Qunol-context.mp4"></video>
+      <div class="select-hotspot-layer scene-overlay-image">
+        <img class="select-img" alt="" data-img="select-qunol.jpg" data-img-fallback="select-qunol.png">
+        <button class="hotspot hotspot-left hotspot-qunol-left" data-role="left" data-i18n-aria="aria_select_qunol" aria-label="Select Qunol"></button>
+        <button class="hotspot hotspot-right hotspot-qunol-right" data-role="right" data-i18n-aria="aria_select_other" aria-label="Select the other product"></button>
+      </div>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+    </div>
+  </div>
+</div>
+
+<!-- Qunol — correct pick (left) -->
+<div class="screen-overlay" id="screen-diamond-qunol-correct">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="qunol-correct.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="diamond-buscapina-context" data-i18n="nav_next_purchase">Next Purchase</button>
+    </div>
+  </div>
+</div>
+
+<!-- Qunol — wrong pick (right) -->
+<div class="screen-overlay" id="screen-diamond-qunol-wrong">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="qunol-wrong.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="diamond-buscapina-context" data-i18n="nav_next_purchase">Next Purchase</button>
+    </div>
+  </div>
+</div>
+
+<!-- Diamond Pharmacy - Copycat Buscapina — same pattern; here left = wrong, right = correct -->
+<div class="screen-overlay" id="screen-diamond-buscapina-context"
+     data-reveal-before-end="0.5" data-left-next="diamond-buscapina-wrong" data-right-next="diamond-buscapina-correct">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="diamond-buscapina-context.mp4"></video>
+      <div class="select-hotspot-layer scene-overlay-image">
+        <img class="select-img" alt="" data-img="select-buscapina.jpg" data-img-fallback="select-buscapina.png">
+        <button class="hotspot hotspot-left hotspot-buscapina-left" data-role="left" data-i18n-aria="aria_select_other" aria-label="Select the other product"></button>
+        <button class="hotspot hotspot-right hotspot-buscapina-right" data-role="right" data-i18n-aria="aria_select_buscapina" aria-label="Select Buscapina"></button>
+      </div>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+    </div>
+  </div>
+</div>
+
+<!-- Buscapina — wrong pick (left) -->
+<div class="screen-overlay" id="screen-diamond-buscapina-wrong">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="buscapina-wrong.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="diamond-explain" data-i18n="nav_next">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- Buscapina — correct pick (right) -->
+<div class="screen-overlay" id="screen-diamond-buscapina-correct">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="buscapina-correct.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="diamond-explain" data-i18n="nav_next">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- Counterfeiting summary video — wraps up the Diamond Pharmacy visit and the
+     whole route; auto-advances into the route-complete banner when it ends,
+     since there is no further stop after Diamond Pharmacy. -->
+<div class="screen-overlay" id="screen-diamond-explain" data-on-end="route-complete">
+  <div class="screen-inner">
+    <div class="scene-video-wrap">
+      <video class="scene-video" playsinline preload="none" data-video="counterfeiting.mp4"></video>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+      <button class="nav-btn nav-btn-primary" data-action="route-complete" data-i18n="nav_finish_route">Finish Route</button>
+    </div>
+  </div>
+</div>
+
+<!-- Route complete — the whole training route ends here, shown automatically
+     once the counterfeiting video finishes. -->
+<div class="screen-overlay" id="screen-route-complete">
+  <div class="screen-inner">
+    <div class="route-complete-banner">
+      <div class="route-complete-check">&#10003;</div>
+      <div class="route-complete-title" data-i18n="route_complete_title">Route Completed Successfully!</div>
+    </div>
+    <div class="screen-nav">
+      <button class="nav-btn nav-btn-primary" data-action="map" data-i18n="nav_back_to_map">Back to Map</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var mapFrame = document.getElementById("map-frame");
+  var videoNoRoute = document.getElementById("video-no-route");
+  var videoWithRoute = document.getElementById("video-with-route");
+  var tripBar = document.getElementById("trip-bar");
+  var startBtn = document.getElementById("btn-start-route");
+  var routeActive = false;
+
+  // ---- Per-language media folders + text translation ----
+  // Every video/image in the page carries its plain filename in data-video /
+  // data-img (+ data-img-fallback) instead of a hardcoded src. videoPath()/
+  // imagePath() turn that filename into the real path inside the chosen
+  // language's subfolder -- videos/EN/<file>, videos/ES/<file>, videos/PO/<file>
+  // (and the same for images/) -- using the exact same filenames and the
+  // exact same screen order already built for English. applyMediaLanguage()
+  // re-points every element whenever the language changes; applyTextLanguage()
+  // re-translates every button/label marked with data-i18n / data-i18n-aria.
+  var LANG_FOLDERS = { en: "EN", es: "ES", po: "PO" };
+  var currentLang = "en";
+
+  var I18N = {
+    en: {
+      title: "Brand Protection Route",
+      badge_map_view: "MAP VIEW",
+      search_new_trade_visit: "New Trade Visit",
+      route_banner_title: "Pharmacy Visit Route",
+      stop_opella: "Opella Healthcare Colombia",
+      stop_triangle: "Triangle Pharmacy",
+      stop_star: "Star Pharmacy",
+      stop_circle: "Circle Pharmacy",
+      btn_start_route: "Start Route",
+      btn_clear_route: "Clear Route",
+      btn_change_language: "Change Language",
+      nav_back_to_map: "Back to Map",
+      nav_next_purchase: "Next Purchase",
+      nav_next: "Next",
+      nav_next_stop: "Next Stop",
+      nav_finish_route: "Finish Route",
+      route_complete_title: "Route Completed Successfully!",
+      aria_select_allegra: "Select Allegra",
+      aria_select_other: "Select the other product",
+      aria_select_enterogermina: "Select Enterogermina",
+      aria_select_yes: "Select Yes",
+      aria_select_no: "Select No",
+      aria_select_qunol: "Select Qunol",
+      aria_select_buscapina: "Select Buscapina"
+    },
+    es: {
+      title: "Ruta de Protección de Marca",
+      badge_map_view: "VISTA DE MAPA",
+      search_new_trade_visit: "Nueva Visita Comercial",
+      route_banner_title: "Ruta de Visita a Farmacias",
+      stop_opella: "Opella Healthcare Colombia",
+      stop_triangle: "Farmacia Triangle",
+      stop_star: "Farmacia Star",
+      stop_circle: "Farmacia Circle",
+      btn_start_route: "Iniciar Ruta",
+      btn_clear_route: "Terminar Ruta",
+      btn_change_language: "Cambiar Idioma",
+      nav_back_to_map: "Volver al Mapa",
+      nav_next_purchase: "Siguiente Compra",
+      nav_next: "Siguiente",
+      nav_next_stop: "Siguiente Parada",
+      nav_finish_route: "Finalizar Ruta",
+      route_complete_title: "¡Ruta Completada con Éxito!",
+      aria_select_allegra: "Seleccionar Allegra",
+      aria_select_other: "Seleccionar el otro producto",
+      aria_select_enterogermina: "Seleccionar Enterogermina",
+      aria_select_yes: "Seleccionar Sí",
+      aria_select_no: "Seleccionar No",
+      aria_select_qunol: "Seleccionar Qunol",
+      aria_select_buscapina: "Seleccionar Buscapina"
+    },
+    po: {
+      title: "Rota de Proteção de Marca",
+      badge_map_view: "VISTA DO MAPA",
+      search_new_trade_visit: "Nova Visita Comercial",
+      route_banner_title: "Rota de Visita às Farmácias",
+      stop_opella: "Opella Healthcare Colombia",
+      stop_triangle: "Farmácia Triangle",
+      stop_star: "Farmácia Star",
+      stop_circle: "Farmácia Circle",
+      btn_start_route: "Iniciar Rota",
+      btn_clear_route: "Encerrar Rota",
+      btn_change_language: "Mudar Idioma",
+      nav_back_to_map: "Voltar ao Mapa",
+      nav_next_purchase: "Próxima Compra",
+      nav_next: "Próximo",
+      nav_next_stop: "Próxima Parada",
+      nav_finish_route: "Finalizar Rota",
+      route_complete_title: "Rota Concluída com Sucesso!",
+      aria_select_allegra: "Selecionar Allegra",
+      aria_select_other: "Selecionar o outro produto",
+      aria_select_enterogermina: "Selecionar Enterogermina",
+      aria_select_yes: "Selecionar Sim",
+      aria_select_no: "Selecionar Não",
+      aria_select_qunol: "Selecionar Qunol",
+      aria_select_buscapina: "Selecionar Buscapina"
+    }
+  };
+
+  function videoPath(filename){ return "videos/" + LANG_FOLDERS[currentLang] + "/" + filename; }
+  function imagePath(filename){ return "images/" + LANG_FOLDERS[currentLang] + "/" + filename; }
+
+  function restartIdleMapVideo(){
+    if(routeActive) return;
+    videoNoRoute.currentTime = 0;
+    var p = videoNoRoute.play();
+    if(p && p.catch) p.catch(function(){ /* autoplay still locked; a later interaction will retry */ });
+  }
+
+  function applyMediaLanguage(){
+    // Only re-point each video's src here -- do NOT force-load every scene
+    // video at once. All 24 pharmacy-visit videos carry preload="none", so
+    // simply setting .src does not start fetching them; the browser only
+    // actually starts downloading one once preloadVideo()/preloadLikelyNext()
+    // or openScreen() calls .load()/.play() on it (one or two at a time).
+    // Calling .load() on all 26 videos here at once used to make the browser
+    // start that many simultaneous requests the instant a language is
+    // chosen, which could starve whichever video a real visit needed next
+    // long enough to look "missing" even though the file was there all
+    // along. The two map videos (no preload="none") are the exception: they
+    // need to actually restart playback right away, so they're reloaded here.
+    document.querySelectorAll("[data-video]").forEach(function(v){
+      var filename = v.getAttribute("data-video");
+      v.removeAttribute("data-preloading");
+      v.src = videoPath(filename);
+      if(v.getAttribute("preload") !== "none") v.load();
+    });
+    document.querySelectorAll("[data-img]").forEach(function(img){
+      var wrap = img.closest(".scene-video-wrap");
+      clearMediaMissing(wrap);
+      img.style.display = "";
+      var filename = img.getAttribute("data-img");
+      var fallbackFilename = img.getAttribute("data-img-fallback");
+      img.src = imagePath(filename);
+      if(fallbackFilename) img.setAttribute("data-fallback-src", imagePath(fallbackFilename));
+    });
+    restartIdleMapVideo();
+  }
+
+  function applyTextLanguage(lang){
+    var dict = I18N[lang] || I18N.en;
+    document.querySelectorAll("[data-i18n]").forEach(function(el){
+      var key = el.getAttribute("data-i18n");
+      if(dict[key] != null) el.textContent = dict[key];
+    });
+    document.querySelectorAll("[data-i18n-aria]").forEach(function(el){
+      var key = el.getAttribute("data-i18n-aria");
+      if(dict[key] != null) el.setAttribute("aria-label", dict[key]);
+    });
+    startBtn.textContent = routeActive ? dict.btn_clear_route : dict.btn_start_route;
+  }
+
+  // Language picker — shown first, before anything else on the page.
+  // English, Spanish and Portuguese all proceed: picking one points every
+  // video/image at that language's subfolder and re-translates every
+  // button/label. The map underneath keeps idling behind this the whole
+  // time, so once a language is picked it's just already there, ready to go.
+  var languageSelect = document.getElementById("language-select");
+  var changeLanguageBtn = document.getElementById("btn-change-language");
+  languageSelect.querySelectorAll(".language-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      currentLang = btn.getAttribute("data-lang");
+      applyMediaLanguage();
+      applyTextLanguage(currentLang);
+      languageSelect.classList.add("is-hidden");
+    });
+  });
+  // Small escape hatch in the corner of the map, in case the wrong language
+  // got picked -- only relevant before the route starts (see showRoute /
+  // hideRoute below, which hide and reveal this button the same way they
+  // do the trip-bar).
+  changeLanguageBtn.addEventListener("click", function(){
+    languageSelect.classList.remove("is-hidden");
+  });
+
+  // Set the initial (English) media paths and text right away, before
+  // anything below tries to read a video's state or an image's load result.
+  applyMediaLanguage();
+  applyTextLanguage(currentLang);
+
+  // Very soft hold-music bed under the idle map (before a route starts).
+  // Browsers block un-muted autoplay until the visitor has interacted with
+  // the page, so the very first play() call on load is expected to fail
+  // silently. We keep retrying on every interaction (click/tap/key) — not
+  // just the first one — until it actually catches, then stop listening.
+  var bgAudio = document.getElementById("bg-audio");
+  bgAudio.volume = 0.1;
+  function tryPlayBgAudio(){
+    if(routeActive) return;
+    var p = bgAudio.play();
+    if(p && p.catch) p.catch(function(){ /* still blocked; a later interaction will retry */ });
+  }
+  tryPlayBgAudio();
+  var UNLOCK_EVENTS = ["pointerdown", "click", "touchstart", "keydown"];
+  function unlockBgAudioOnInteraction(){
+    tryPlayBgAudio();
+    if(!bgAudio.paused){
+      UNLOCK_EVENTS.forEach(function(evt){
+        window.removeEventListener(evt, unlockBgAudioOnInteraction);
+      });
+    }
+  }
+  UNLOCK_EVENTS.forEach(function(evt){
+    window.addEventListener(evt, unlockBgAudioOnInteraction);
+  });
+
+  function showRoute(){
+    mapFrame.classList.add("is-active");
+    startBtn.classList.add("is-active");
+    startBtn.textContent = (I18N[currentLang] || I18N.en).btn_clear_route;
+    tripBar.classList.add("is-hidden");
+    changeLanguageBtn.classList.add("is-hidden");
+    videoWithRoute.currentTime = 0;
+    videoWithRoute.play();
+    videoNoRoute.pause();
+    routeActive = true;
+    // Get a head start on the very first pharmacy-visit video while the
+    // driving video plays, the same way each screen preloads what comes
+    // after it (see preloadVideo below) -- otherwise this first one has no
+    // earlier screen to have started it early.
+    var welcomeVideo = document.querySelector("#screen-triangle-welcome .scene-video");
+    if(welcomeVideo && welcomeVideo.readyState === 0 && !welcomeVideo.hasAttribute("data-preloading")){
+      welcomeVideo.setAttribute("data-preloading", "1");
+      welcomeVideo.preload = "auto";
+      welcomeVideo.load();
+    }
+  }
+  function hideRoute(){
+    mapFrame.classList.remove("is-active");
+    startBtn.classList.remove("is-active");
+    startBtn.textContent = (I18N[currentLang] || I18N.en).btn_start_route;
+    tripBar.classList.remove("is-hidden");
+    changeLanguageBtn.classList.remove("is-hidden");
+    videoNoRoute.currentTime = 0;
+    videoNoRoute.play();
+    videoWithRoute.pause();
+    routeActive = false;
+    tryPlayBgAudio();
+  }
+
+  startBtn.addEventListener("click", function(){
+    if(routeActive) hideRoute(); else showRoute();
+  });
+
+  /* ---- pharmacy-visit screens ----
+     Generic engine driven entirely by data-* attributes, so a future screen
+     (another product, another pharmacy) can be added just by copying an
+     existing block in the HTML — no JS changes needed.
+       data-on-end="<screen-id>"      -> auto-advance when this screen's video ends
+       data-reveal-before-end="<sec>" -> reveal the .scene-overlay-image this many
+                                          seconds before this screen's video ends
+       data-left-next / data-right-next -> which screen each hotspot leads to
+       [data-action="map"]            -> "Back to Map" button
+       [data-action="<screen-id>"]    -> "go to this screen" button              */
+  var ALL_SCREENS = Array.prototype.map.call(
+    document.querySelectorAll(".screen-overlay[id^='screen-']"),
+    function(el){ return el.id.replace(/^screen-/, ""); }
+  );
+
+  // Graceful fallback for media that hasn't been uploaded yet: instead of a
+  // blank black box (video) or a broken-image icon (select-img), show a
+  // plain "Falta por video" / "Falta por foto" note over that screen's video
+  // area. Defined up here so openScreen (below) can call it directly.
+  function showMediaMissing(wrap, label){
+    if(!wrap || wrap.querySelector(".media-missing")) return;
+    var msg = document.createElement("div");
+    msg.className = "media-missing";
+    msg.textContent = label;
+    wrap.appendChild(msg);
+  }
+  // Self-heal: if a video we (maybe wrongly) flagged as missing actually
+  // does start playing a moment later -- perfectly normal on a real
+  // connection, where buffering can take a few seconds -- remove the note
+  // instead of leaving a stale "Falta por video" sitting over a working
+  // video.
+  function clearMediaMissing(wrap){
+    if(!wrap) return;
+    var msg = wrap.querySelector(".media-missing");
+    if(msg) msg.remove();
+  }
+  function pauseSceneVideo(screenEl){
+    var v = screenEl.querySelector(".scene-video");
+    if(v) v.pause();
+  }
+
+  // Get a head start on whichever video(s) might be needed right after the
+  // one the visitor is watching now, instead of only starting to fetch a
+  // video the instant its screen opens. On a real connection (as opposed to
+  // instant local testing) that first request is exactly what shows up as a
+  // stall/black moment when jumping to the next screen -- giving the likely
+  // next video the last several seconds of the current one to buffer in the
+  // background removes most of that wait.
+  function preloadVideo(nextId){
+    if(!nextId || nextId === "map") return;
+    var nextEl = document.getElementById("screen-" + nextId);
+    if(!nextEl) return;
+    var nv = nextEl.querySelector(".scene-video");
+    if(!nv || nv.readyState > 0 || nv.hasAttribute("data-preloading")) return;
+    nv.setAttribute("data-preloading", "1");
+    nv.preload = "auto";
+    nv.load();
+  }
+  function preloadLikelyNext(screenEl){
+    var ids = [];
+    var onEnd = screenEl.getAttribute("data-on-end");
+    if(onEnd) ids.push(onEnd);
+    var leftNext = screenEl.getAttribute("data-left-next");
+    if(leftNext) ids.push(leftNext);
+    var rightNext = screenEl.getAttribute("data-right-next");
+    if(rightNext) ids.push(rightNext);
+    screenEl.querySelectorAll("[data-action]").forEach(function(btn){
+      var action = btn.getAttribute("data-action");
+      if(action) ids.push(action);
+    });
+    ids.forEach(preloadVideo);
+  }
+  function closeAllScreens(){
+    ALL_SCREENS.forEach(function(id){
+      var el = document.getElementById("screen-" + id);
+      if(!el) return;
+      el.classList.remove("is-open");
+      pauseSceneVideo(el);
+      if(el._resetScreen) el._resetScreen();
+    });
+  }
+  function backToMap(){
+    closeAllScreens();
+    hideRoute();
+  }
+  function openScreen(id){
+    // Once the visit moves into a full-screen pharmacy video (starting with
+    // the Triangle Pharmacy welcome video), the soft map hold-music stops —
+    // it only plays under the idle map and the with-route driving video.
+    bgAudio.pause();
+    var el = document.getElementById("screen-" + id);
+    if(!el) return;
+    if(el._resetScreen) el._resetScreen();
+    preloadLikelyNext(el);
+    var v = el.querySelector(".scene-video");
+
+    // Reveal the new screen (crossfading it in via the .is-open opacity
+    // transition) only once its video is actually painting real frames.
+    // If we started the crossfade the instant we called v.play(), the video
+    // often has nothing decoded yet, so the incoming screen would flash in
+    // as a plain empty/black box for a beat before the real picture caught
+    // up — visible as a jarring "extra square" mid-transition. Waiting for
+    // playback to truly start (plus one extra paint) keeps both videos
+    // visibly in motion for the whole crossfade, so it reads as one
+    // continuous shot instead of a cut.
+    var revealed = false;
+    function reveal(){
+      if(revealed) return;
+      revealed = true;
+      // Close every OTHER screen — never touch "el" here, since its video
+      // was already started playing above; re-pausing it at this point
+      // would freeze the very screen we're about to reveal.
+      ALL_SCREENS.forEach(function(otherId){
+        if(otherId === id) return;
+        var other = document.getElementById("screen-" + otherId);
+        if(!other) return;
+        other.classList.remove("is-open");
+        pauseSceneVideo(other);
+      });
+      el.classList.add("is-open");
+    }
+    if(v){
+      v.currentTime = 0;
+      var playResult = v.play();
+      if(playResult && playResult.then){
+        playResult.then(function(){
+          requestAnimationFrame(function(){ requestAnimationFrame(reveal); });
+        }).catch(function(){ reveal(); /* autoplay blocked; reveal anyway */ });
+      }
+      // Safety net #1: if play() never resolves (a real device quietly
+      // refusing autoplay, etc.), don't leave the visit stuck on the
+      // previous screen forever — reveal this one anyway after a short
+      // wait. This is purely about not getting stuck; it says nothing
+      // about whether the media is actually missing, since a real video
+      // over a real connection can easily still be buffering (readyState
+      // 0) a second in — that's normal, not an error.
+      setTimeout(reveal, 1200);
+      // Safety net #2: missing-media detection, kept deliberately patient.
+      // A genuine 404 fires the 'error' listener (wired up below) almost
+      // immediately, so it doesn't need this long wait to be caught. This
+      // longer check exists only for the rarer case where a file never
+      // errors AND never loads at all — so it waits long enough that a
+      // real video buffering on a real connection has every chance to
+      // start before being mistaken for missing.
+      setTimeout(function(){
+        if(v.error || v.readyState === 0){
+          showMediaMissing(v.closest(".scene-video-wrap"), "Falta por video");
+        }
+      }, 12000);
+    } else {
+      reveal();
+    }
+  }
+
+  // The with-route video now plays once (no loop). When it finishes on its
+  // own — i.e. the visit actually reached the end of the route — hand off
+  // to the Triangle Pharmacy welcome screen.
+  videoWithRoute.addEventListener("ended", function(){
+    openScreen("triangle-welcome");
+  });
+
+  // Size the selection-image overlay to exactly match the video's own
+  // letterboxed rect (same math as object-fit:contain), so the image sits
+  // flush over the video instead of floating smaller/larger than it.
+  function syncOverlayToVideo(video, overlay){
+    var vw = video.videoWidth, vh = video.videoHeight;
+    var wrap = video.closest(".scene-video-wrap");
+    if(!vw || !vh || !wrap) return;
+    var cw = wrap.clientWidth, ch = wrap.clientHeight;
+    if(!cw || !ch) return;
+    var videoAR = vw / vh, containerAR = cw / ch;
+    var renderW, renderH;
+    if(videoAR > containerAR){
+      renderW = cw;
+      renderH = cw / videoAR;
+    } else {
+      renderH = ch;
+      renderW = ch * videoAR;
+    }
+    overlay.style.width = renderW + "px";
+    overlay.style.height = renderH + "px";
+  }
+
+  // Wire every screen generically from its data-* attributes.
+  ALL_SCREENS.forEach(function(id){
+    var screenEl = document.getElementById("screen-" + id);
+    var video = screenEl.querySelector(".scene-video");
+    var onEnd = screenEl.getAttribute("data-on-end");
+    if(video && onEnd){
+      video.addEventListener("ended", function(){ openScreen(onEnd); });
+    }
+
+    var overlay = screenEl.querySelector(".scene-overlay-image");
+    if(video && overlay){
+      var revealBefore = parseFloat(screenEl.getAttribute("data-reveal-before-end")) || 2;
+      var leftNext = screenEl.getAttribute("data-left-next");
+      var rightNext = screenEl.getAttribute("data-right-next");
+      var leftBtn = overlay.querySelector(".hotspot-left");
+      var rightBtn = overlay.querySelector(".hotspot-right");
+      var revealed = false, locked = false;
+
+      video.addEventListener("loadedmetadata", function(){ syncOverlayToVideo(video, overlay); });
+      window.addEventListener("resize", function(){
+        if(overlay.classList.contains("is-visible")) syncOverlayToVideo(video, overlay);
+      });
+      video.addEventListener("timeupdate", function(){
+        if(revealed || !isFinite(video.duration)) return;
+        if(video.duration - video.currentTime <= revealBefore){
+          revealed = true;
+          syncOverlayToVideo(video, overlay);
+          overlay.classList.add("is-visible");
+          // Note: the video is intentionally left playing underneath (never
+          // paused) all the way to its own natural end — pausing it here
+          // made playback look stuck/jerky. Screens that need the picture to
+          // stop changing while the visitor decides (Essentiale, Magne-B6)
+          // handle that by showing a still image on top of the video for
+          // this same window instead, via the optional .select-img below.
+        }
+      });
+      function pick(btn, nextId){
+        if(locked || !nextId) return;
+        locked = true;
+        overlay.classList.add("is-locked");
+        btn.classList.add("is-picked");
+        openScreen(nextId);
+      }
+      leftBtn.addEventListener("click", function(){ pick(leftBtn, leftNext); });
+      rightBtn.addEventListener("click", function(){ pick(rightBtn, rightNext); });
+      screenEl._resetScreen = function(){
+        revealed = false; locked = false;
+        overlay.classList.remove("is-visible", "is-locked");
+        leftBtn.classList.remove("is-picked");
+        rightBtn.classList.remove("is-picked");
+      };
+    }
+
+    screenEl.querySelectorAll("[data-action]").forEach(function(btn){
+      var action = btn.getAttribute("data-action");
+      btn.addEventListener("click", function(){
+        if(action === "map") backToMap();
+        else openScreen(action);
+      });
+    });
+  });
+
+  // Extra safety net: catches a video that fails LATER (e.g. the network
+  // drops mid-visit), on top of the check openScreen already does the
+  // moment a screen opens.
+  document.querySelectorAll(".scene-video").forEach(function(video){
+    video.addEventListener("error", function(){
+      showMediaMissing(video.closest(".scene-video-wrap"), "Falta por video");
+    }, true);
+    video.addEventListener("playing", function(){
+      clearMediaMissing(video.closest(".scene-video-wrap"));
+    });
+  });
+  function handleImgFallback(img){
+    var fallback = img.getAttribute("data-fallback-src");
+    if(fallback){
+      img.removeAttribute("data-fallback-src");
+      img.src = fallback;
+    } else {
+      img.style.display = "none";
+      showMediaMissing(img.closest(".scene-video-wrap"), "Falta por foto");
+    }
+  }
+  document.querySelectorAll(".select-img").forEach(function(img){
+    // If the image already failed before this listener was attached (a fast
+    // 404), catch it now instead of waiting for an 'error' event that has
+    // already happened.
+    if(img.complete && img.naturalWidth === 0){ handleImgFallback(img); return; }
+    img.addEventListener("error", function(){ handleImgFallback(img); });
+  });
+
+})();
+</script>
+</body></html>
